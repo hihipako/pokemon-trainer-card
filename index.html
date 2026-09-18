@@ -15,6 +15,8 @@
   --pix:"Silkscreen","Courier New",monospace;
   --sh:0 1px 2px rgba(60,40,80,.05),0 10px 26px -14px rgba(60,40,80,.3);
   --sh-up:0 8px 18px rgba(40,25,60,.18),0 30px 60px -20px rgba(40,25,60,.5);
+  /* 카드는 이 크기로 그린 뒤 통째로 확대·축소한다 — 어느 화면에서도 비율이 같다 */
+  --cw:1120px; --ch:700px; --k:1;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#141118; --panel:#1f1a26; --panel-2:#272031; --inset:#1a1520;
@@ -37,11 +39,17 @@
 html,body{margin:0;height:100%}
 body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased}
 body.modal-open{overflow:hidden}
-/* 카드 한 장이 화면 높이를 꽉 채운다 */
+/* 카드는 비율을 지킨 채 화면에 맞게 줄었다 늘었다 한다 */
 .wrap{
   max-width:1240px;margin:0 auto;padding:0 14px;padding-block:10px 14px;
-  min-height:100%;display:flex;flex-direction:column;
+  min-height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;
 }
+.cardfit{
+  width:calc(var(--cw) * var(--k));
+  height:calc(var(--ch) * var(--k));
+  overflow:hidden;
+}
+body.exporting .cardfit{overflow:visible}
 h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance}
 button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;padding:0}
 input,select,textarea{font:inherit;color:inherit}
@@ -106,19 +114,15 @@ body.exporting .bar:hover,body.exporting .ent:hover{border-color:var(--cln)}
 .cardwrap{
   position:relative;background:var(--panel);border:1px solid var(--line);
   border-radius:18px;padding:12px;box-shadow:var(--sh);
-  flex:1 1 auto;min-height:0;display:flex;flex-direction:column;
+  flex:0 0 auto;
 }
 .card{
   --cbg:#ffffff; --cfg:#191622; --cfg2:rgba(25,22,34,.55); --cln:rgba(25,22,34,.16); --cpl:rgba(255,255,255,.86);
   background:var(--cbg);color:var(--cfg);
   border-radius:12px;padding:18px;display:grid;grid-template-columns:1fr 1fr;gap:16px;
   transition:background .2s,color .2s;
-  flex:1 1 auto;min-height:0;
-}
-@media (max-width:840px){
-  .card{grid-template-columns:1fr;flex:0 0 auto}
-  .stage{min-height:440px}
-  .wrap{min-height:0}
+  width:var(--cw);height:var(--ch);
+  transform:scale(var(--k));transform-origin:top left;
 }
 
 .side{display:flex;flex-direction:column;gap:11px;min-width:0;min-height:0}
@@ -140,7 +144,7 @@ body.exporting .bar:hover,body.exporting .ent:hover{border-color:var(--cln)}
 .blk.quote::before{content:"\201C";position:absolute;left:8px;top:6px;font-family:var(--display);font-size:30px;font-weight:900;line-height:1;color:var(--cln)}
 
 .stage{
-  position:relative;min-height:260px;border:1.5px solid var(--cln);
+  position:relative;min-height:0;border:1.5px solid var(--cln);
   border-radius:10px;overflow:hidden;
   background:repeating-conic-gradient(var(--cln) 0% 25%, transparent 0% 50%) 50%/16px 16px;
   touch-action:none;
@@ -304,6 +308,21 @@ select.tin{cursor:pointer}
 .setprev .wd{font-size:11px;color:var(--faint)}
 .emptyset{text-align:center;color:var(--faint);padding:34px 10px;font-size:13px;line-height:1.7}
 
+/* 세로로 든 폰에서는 카드가 너무 작아진다 — 돌려 달라고 안내 */
+.rotate{display:none}
+@media (max-width:820px) and (orientation:portrait){
+  .rotate{
+    display:flex;position:fixed;inset:0;z-index:90;background:var(--bg);color:var(--ink);
+    flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center;padding:28px;
+  }
+  .rotate .ico{font-size:52px;line-height:1;animation:tip 2.4s ease-in-out infinite}
+  .rotate h2{font-size:18px;font-weight:900}
+  .rotate p{margin:0;font-size:13.5px;color:var(--soft);line-height:1.7;max-width:30ch}
+  .wrap{display:none}
+}
+@keyframes tip{0%,55%,100%{transform:rotate(0)}70%,90%{transform:rotate(-90deg)}}
+@media (prefers-reduced-motion:reduce){.rotate .ico{animation:none}}
+
 .toast{position:fixed;left:50%;bottom:22px;transform:translate(-50%,12px);background:var(--ink);color:var(--bg);padding:9px 18px;border-radius:999px;font-size:12.5px;font-weight:600;opacity:0;pointer-events:none;transition:.2s;z-index:80;box-shadow:var(--sh)}
 .toast.on{opacity:1;transform:translate(-50%,0)}
 footer{margin-top:22px;text-align:center;font-size:11px;color:var(--faint);line-height:1.7}
@@ -392,6 +411,7 @@ footer{margin-top:22px;text-align:center;font-size:11px;color:var(--faint);line-
         </div>
       </div>
     </div>
+    <div class="cardfit">
     <div class="card" id="card">
       <div class="side">
         <div class="blk" id="blk_name">
@@ -422,8 +442,16 @@ footer{margin-top:22px;text-align:center;font-size:11px;color:var(--faint);line-
         <div class="party" id="party"></div>
       </div>
     </div>
+    </div>
   </div>
 
+</div>
+
+<div class="rotate">
+  <div class="ico" aria-hidden="true">📱</div>
+  <h2>가로로 돌려주세요</h2>
+  <p>트레이너 카드는 가로로 긴 모양이라, 세로로 들면 글씨가 너무 작아집니다.
+     기기를 눕히면 바로 이어서 만들 수 있어요.</p>
 </div>
 
 <div class="modal" id="modal" hidden>
@@ -719,8 +747,9 @@ bw.addEventListener("pointerdown", function(ev){
   if(!S.base || document.body.classList.contains("locked")) return;
   if(ev.target.closest(".layer")||ev.target.closest(".party")) return;
   bw.setPointerCapture(ev.pointerId); bw.classList.add("grabbing");
-  var sx=ev.clientX, sy=ev.clientY, bx=S.baseT.x, by=S.baseT.y;
-  function mv(e){ S.baseT.x=bx+(e.clientX-sx); S.baseT.y=by+(e.clientY-sy); applyBase(); }
+  var sx=ev.clientX, sy=ev.clientY, bx=S.baseT.x, by=S.baseT.y, k=cardScale();
+  /* 카드가 축소돼 있으면 화면에서 움직인 거리보다 카드 안에서는 더 많이 움직여야 한다 */
+  function mv(e){ S.baseT.x=bx+(e.clientX-sx)/k; S.baseT.y=by+(e.clientY-sy)/k; applyBase(); }
   function up(){ bw.removeEventListener("pointermove",mv); bw.removeEventListener("pointerup",up); bw.classList.remove("grabbing"); save(); }
   bw.addEventListener("pointermove",mv); bw.addEventListener("pointerup",up);
 });
@@ -729,8 +758,10 @@ function applyBase(){
 }
 function fitBase(){
   var im=$("baseImg"); if(!im.naturalWidth) return;
-  var R=stageRect();
-  var s=Math.max(R.width/im.naturalWidth, R.height/im.naturalHeight);
+  /* stageRect 은 축소된 화면 기준이므로 카드 원래 크기로 되돌려 계산한다 */
+  var R=stageRect(), k=cardScale();
+  var sw=R.width/k, sh=R.height/k;
+  var s=Math.max(sw/im.naturalWidth, sh/im.naturalHeight);
   im.style.width=im.naturalWidth+"px"; im.style.height=im.naturalHeight+"px";
   S.baseT={x:0,y:0,z:s};
   $("baseZoom").value=Math.round(s*100); $("baseZoomV").textContent=Math.round(s*100)+"%";
@@ -971,6 +1002,28 @@ $("sw_w").addEventListener("click",function(){ setBg("#ffffff"); });
 $("sw_k").addEventListener("click",function(){ setBg("#111111"); });
 $("bgPick").addEventListener("input",function(){ setBg(this.value); });
 
+/* ── 화면에 맞춰 카드 배율 정하기 (비율은 항상 유지) ── */
+var CARD_W=1120, CARD_H=700;
+function fit(){
+  if(document.body.classList.contains("exporting")) return;
+  var wrap=document.querySelector(".wrap");
+  var styles=getComputedStyle(wrap);
+  var padX=parseFloat(styles.paddingLeft)+parseFloat(styles.paddingRight);
+  var padY=parseFloat(styles.paddingTop)+parseFloat(styles.paddingBottom);
+  var frame=26;                                   // .cardwrap 테두리+안쪽 여백
+  var availW=Math.min(wrap.clientWidth, 1240)-padX-frame;
+  var availH=(window.innerHeight||document.documentElement.clientHeight)-padY-frame;
+  var k=Math.min(availW/CARD_W, availH/CARD_H);
+  k=Math.max(0.25, Math.min(1.45, k));
+  document.documentElement.style.setProperty("--k", k.toFixed(4));
+}
+function cardScale(){
+  var k=parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--k"));
+  return (k>0 && isFinite(k)) ? k : 1;
+}
+window.addEventListener("resize", fit);
+window.addEventListener("orientationchange", function(){ setTimeout(fit,120); });
+
 /* ── 저장: 카드를 PNG로 구워 내보내기 ────────────── */
 var saveBtn=$("saveBtn");
 function claudeDownloads(){
@@ -999,19 +1052,20 @@ saveBtn.addEventListener("click",function(){
   if(saveBtn.disabled) return;
   saveBtn.disabled=true; var old=saveBtn.textContent; saveBtn.textContent="굽는 중…";
   setMenu(false);
-  var restore=function(){ document.body.classList.remove("exporting"); saveBtn.disabled=false; saveBtn.textContent=old; };
+  var restore=function(){ document.body.classList.remove("exporting"); fit(); saveBtn.disabled=false; saveBtn.textContent=old; };
 
   Promise.all([loadH2C(), claudeDownloads()]).then(function(r){
     var h2c=r[0], dl=r[1];
     fillMirrors();
     document.body.classList.add("exporting");
+    document.documentElement.style.setProperty("--k","1");   // 원래 크기로 구움
     return new Promise(function(res){ requestAnimationFrame(function(){ requestAnimationFrame(res); }); })
       .then(function(){
         return h2c($("card"), { backgroundColor:S.bg, scale:2, useCORS:true, logging:false,
                                 windowWidth:document.documentElement.clientWidth });
       })
       .then(function(canvas){
-        document.body.classList.remove("exporting");
+        document.body.classList.remove("exporting"); fit();
         return new Promise(function(res,rej){
           canvas.toBlob(function(b){ b?res(b):rej(new Error("no-blob")); }, "image/png");
         });
@@ -1203,6 +1257,7 @@ function start(hot){
       o.show=o.show||{name:1,quote:1,desc:1,party:1}; o.layers=o.layers||[];
       o.party=o.party||{x:4,y:54}; o.baseT=o.baseT||{x:0,y:0,z:1}; n=o; } } }catch(e){} }
   if(!n) n=S;
+  fit();
   apply(n);
   /* 늦게 끼어드는 폼 복원까지 되돌림 */
   window.addEventListener("load", applyFields);
