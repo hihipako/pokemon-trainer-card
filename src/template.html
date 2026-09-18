@@ -150,9 +150,31 @@ body.exporting .bar:hover,body.exporting .ent:hover{border-color:var(--cln)}
   touch-action:none;
 }
 .stage.plain{background:none}
-#baseWrap{position:absolute;inset:0;overflow:hidden;cursor:grab}
-#baseWrap.grabbing{cursor:grabbing}
-#baseImg{position:absolute;left:50%;top:50%;transform-origin:center;user-select:none;-webkit-user-drag:none;max-width:none}
+/* 대표 이미지는 카드 위에서 고정 — 옮기거나 키우는 건 자르기 화면에서만 */
+#baseWrap{position:absolute;inset:0;overflow:hidden}
+#baseImg{
+  position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;
+  user-select:none;-webkit-user-drag:none;pointer-events:none;
+}
+
+/* 자르기 화면 */
+.cropbox{
+  position:relative;margin:0 auto 14px;overflow:hidden;border-radius:10px;
+  background:var(--inset);touch-action:none;cursor:grab;
+  outline:2px solid var(--accent);outline-offset:2px;
+}
+.cropbox.grabbing{cursor:grabbing}
+.cropbox img{position:absolute;left:0;top:0;transform-origin:top left;user-select:none;-webkit-user-drag:none;max-width:none}
+.cropbox::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:
+    linear-gradient(var(--line-2),var(--line-2)) 33.33% 0/1px 100% no-repeat,
+    linear-gradient(var(--line-2),var(--line-2)) 66.66% 0/1px 100% no-repeat,
+    linear-gradient(var(--line-2),var(--line-2)) 0 33.33%/100% 1px no-repeat,
+    linear-gradient(var(--line-2),var(--line-2)) 0 66.66%/100% 1px no-repeat;
+  opacity:.45;
+}
+.crophint{text-align:center;font-size:11.5px;color:var(--faint);margin:0 0 10px;line-height:1.6}
 .stagehint{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--cfg2);text-align:center;padding:18px;pointer-events:none}
 .stagehint .ring{width:48px;height:48px;border-radius:50%;border:2px dashed var(--cln);display:grid;place-items:center;font-size:20px}
 .stagehint span{font-size:12px;font-weight:500}
@@ -164,7 +186,7 @@ body.exporting .bar:hover,body.exporting .ent:hover{border-color:var(--cln)}
 .layer .grip{position:absolute;right:-7px;bottom:-7px;width:16px;height:16px;border-radius:50%;background:var(--sel);border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:nwse-resize;display:none}
 .layer.sel .grip{display:block}
 body.locked .layer{cursor:default;pointer-events:none}
-body.locked #baseWrap{cursor:default}
+
 
 .party{position:absolute;display:flex;gap:7px;touch-action:none;cursor:move}
 .party.drag{opacity:.9}
@@ -364,11 +386,10 @@ footer{margin-top:22px;text-align:center;font-size:11px;color:var(--faint);line-
             <h4><span class="n">03</span>트레이너 이미지</h4>
             <div class="row">
               <button class="btn" id="baseBtn" type="button">사진 불러오기</button>
-              <button class="btn g sm" id="baseFit" type="button">칸에 맞춰 자르기</button>
+              <button class="btn g sm" id="baseCrop" type="button">✂ 다시 자르기</button>
               <button class="btn g sm" id="baseDel" type="button">지우기</button>
             </div>
-            <div class="row"><span class="lbl">확대</span><input type="range" id="baseZoom" min="50" max="400" value="100"><span class="mini pix" id="baseZoomV">100%</span></div>
-            <p class="mini" style="margin:8px 0 0">칸 안에서 <b>끌어서</b> 위치를 맞추세요.</p>
+            <p class="mini" style="margin:8px 0 0">사진을 고르면 자르기 화면이 열립니다. 위치와 크기는 거기서 정하고, 카드 위에서는 움직이지 않아요.</p>
           </div>
 
           <div class="msec">
@@ -445,6 +466,28 @@ footer{margin-top:22px;text-align:center;font-size:11px;color:var(--faint);line-
     </div>
   </div>
 
+</div>
+
+<div class="modal" id="cropModal" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="cropHead" style="width:min(460px,100%)">
+    <div class="shead">
+      <h3 id="cropHead">사진 자르기</h3>
+      <button class="btn g sm" id="cropCancel" type="button">취소</button>
+    </div>
+    <div class="sbody">
+      <p class="crophint">끌어서 위치를 맞추고, 아래에서 크기를 조절하세요.<br>카드의 사진 칸 비율에 맞춰 잘립니다.</p>
+      <div class="cropbox" id="cropBox"><img id="cropImg" alt=""></div>
+      <div class="frow">
+        <span class="lbl">크기</span>
+        <input type="range" id="cropZoom" min="100" max="400" value="100" aria-label="사진 크기">
+        <span class="mini pix" id="cropZoomV">100%</span>
+      </div>
+    </div>
+    <div class="sfoot">
+      <button class="btn g sm" id="cropReset" type="button">꽉 채우기</button>
+      <button class="btn" id="cropApply" type="button">적용</button>
+    </div>
+  </div>
 </div>
 
 <div class="rotate">
@@ -532,14 +575,14 @@ function newEnt(id){ var m=byId[id]; if(!m) return null; var g=gendersOf(m);
   return {id:id,nick:"",size:"",title:"",ribbon:"",g:g.length?g[0]:"n",sh:false}; }
 
 /* ── state: 전부 빈 상태로 시작 ──────────────────── */
-var KEY="tcw.v4", VER=4;
+var KEY="tcw.v5", VER=5;
 function fresh(){
   return {
     v:VER,
     bg:"#ffffff", grid:true,
     show:{name:true,quote:true,desc:true,party:true},
     name:"", role:"", quote:"", desc:"",
-    base:null, baseT:{x:0,y:0,z:1},
+    baseSrc:null, crop:{x:0,y:0,z:1},
     layers:[], lsel:null,
     party:{x:4,y:54},
     ents:[null,null,null,null,null,null],
@@ -741,40 +784,54 @@ $("party").addEventListener("pointerdown", function(ev){
   p.addEventListener("pointermove",mv); p.addEventListener("pointerup",up);
 });
 
-/* ── base image ──────────────────────────────────── */
-var bw=$("baseWrap");
-bw.addEventListener("pointerdown", function(ev){
-  if(!S.base || document.body.classList.contains("locked")) return;
-  if(ev.target.closest(".layer")||ev.target.closest(".party")) return;
-  bw.setPointerCapture(ev.pointerId); bw.classList.add("grabbing");
-  var sx=ev.clientX, sy=ev.clientY, bx=S.baseT.x, by=S.baseT.y, k=cardScale();
-  /* 카드가 축소돼 있으면 화면에서 움직인 거리보다 카드 안에서는 더 많이 움직여야 한다 */
-  function mv(e){ S.baseT.x=bx+(e.clientX-sx)/k; S.baseT.y=by+(e.clientY-sy)/k; applyBase(); }
-  function up(){ bw.removeEventListener("pointermove",mv); bw.removeEventListener("pointerup",up); bw.classList.remove("grabbing"); save(); }
-  bw.addEventListener("pointermove",mv); bw.addEventListener("pointerup",up);
-});
-function applyBase(){
-  $("baseImg").style.transform="translate(-50%,-50%) translate("+S.baseT.x+"px,"+S.baseT.y+"px) scale("+S.baseT.z+")";
+/* ── 대표 이미지: 카드 위에서는 고정, 자르기는 전용 화면에서 ──
+
+   S.baseSrc  원본(축소본) — 다시 자를 때 쓴다
+   S.crop     {x, y, z} 자르기 화면에서의 위치·배율
+   #baseImg   잘라낸 결과만 들어가며 카드 위에서 움직이지 않는다          */
+
+var STAGE_W = 534, STAGE_H = 664;          // 카드 안 사진 칸 크기 (1120×700 기준)
+var OUT_W = STAGE_W * 2, OUT_H = STAGE_H * 2;
+
+function setStageImage(dataUrl){
+  var im = $("baseImg");
+  if(!dataUrl){ im.hidden = true; im.removeAttribute("src"); $("stageHint").hidden = false; return; }
+  im.src = dataUrl; im.hidden = false; $("stageHint").hidden = true;
 }
-function fitBase(){
-  var im=$("baseImg"); if(!im.naturalWidth) return;
-  /* stageRect 은 축소된 화면 기준이므로 카드 원래 크기로 되돌려 계산한다 */
-  var R=stageRect(), k=cardScale();
-  var sw=R.width/k, sh=R.height/k;
-  var s=Math.max(sw/im.naturalWidth, sh/im.naturalHeight);
-  im.style.width=im.naturalWidth+"px"; im.style.height=im.naturalHeight+"px";
-  S.baseT={x:0,y:0,z:s};
-  $("baseZoom").value=Math.round(s*100); $("baseZoomV").textContent=Math.round(s*100)+"%";
-  applyBase();
+
+/** S.baseSrc + S.crop 을 실제 잘린 이미지로 만들어 카드에 얹는다. */
+function renderCrop(cb){
+  if(!S.baseSrc){ setStageImage(null); if(cb) cb(); return; }
+  var img = new Image();
+  img.onload = function(){
+    var c = cropRect(img.naturalWidth, img.naturalHeight, S.crop);
+    var cv = document.createElement("canvas");
+    cv.width = OUT_W; cv.height = OUT_H;
+    var ctx = cv.getContext("2d");
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, c.sx, c.sy, c.sw, c.sh, 0, 0, OUT_W, OUT_H);
+    var out;
+    try { out = cv.toDataURL("image/jpeg", 0.9); } catch(e){ out = S.baseSrc; }
+    setStageImage(out);
+    if(cb) cb();
+  };
+  img.onerror = function(){ setStageImage(null); if(cb) cb(); };
+  img.src = S.baseSrc;
 }
-function setBase(src,fit){
-  S.base=src||null;
-  var im=$("baseImg");
-  if(!S.base){ im.hidden=true; im.removeAttribute("src"); $("stageHint").hidden=false; return; }
-  $("stageHint").hidden=true;
-  im.onload=function(){ if(fit) fitBase(); else { im.style.width=im.naturalWidth+"px"; im.style.height=im.naturalHeight+"px"; applyBase(); } };
-  im.src=S.base; im.hidden=false;
+
+/** 자르기 값(x,y,z)을 원본 이미지 위의 사각형으로 바꾼다. */
+function cropRect(iw, ih, crop){
+  var z = Math.max(1, (crop && crop.z) || 1);
+  var cover = Math.max(STAGE_W / iw, STAGE_H / ih);
+  var s = cover * z;                       // 원본 1px 이 프레임에서 차지하는 크기
+  var sw = STAGE_W / s, sh = STAGE_H / s;  // 프레임이 덮는 원본 영역
+  var cx = iw / 2 - ((crop && crop.x) || 0) / s;
+  var cy = ih / 2 - ((crop && crop.y) || 0) / s;
+  var sx = Math.max(0, Math.min(iw - sw, cx - sw / 2));
+  var sy = Math.max(0, Math.min(ih - sh, cy - sh / 2));
+  return { sx: sx, sy: sy, sw: sw, sh: sh };
 }
+
 function shrink(file, max, cb){
   var fr=new FileReader();
   fr.onload=function(){
@@ -796,7 +853,7 @@ function shrink(file, max, cb){
 }
 $("baseBtn").addEventListener("click",function(){ $("fileBase").click(); });
 $("stage").addEventListener("click",function(e){
-  if(S.base) return;
+  if(S.baseSrc) return;
   if(e.target.closest(".ent")||e.target.closest(".layer")) return;
   $("fileBase").click();
 });
@@ -804,12 +861,14 @@ $("fileBase").addEventListener("change",function(e){
   var f=e.target.files&&e.target.files[0]; e.target.value="";
   if(!f) return;
   if(!/^image\//.test(f.type)){ toast("이미지 파일만 올릴 수 있어요"); return; }
-  shrink(f,1100,function(src){ setBase(src,true); save(); toast("사진을 올렸어요 — 끌어서 위치를 맞추세요"); });
+  shrink(f,1400,function(src){ openCrop(src); });
 });
-$("baseFit").addEventListener("click",function(){ if(!S.base){ toast("먼저 사진을 불러오세요"); return; } fitBase(); save(); });
-$("baseDel").addEventListener("click",function(){ setBase(null); save(); });
-$("baseZoom").addEventListener("input",function(){ S.baseT.z=+this.value/100; $("baseZoomV").textContent=this.value+"%"; applyBase(); });
-$("baseZoom").addEventListener("change",save);
+$("baseCrop").addEventListener("click",function(){
+  if(!S.baseSrc){ toast("먼저 사진을 불러오세요"); return; }
+  openCrop(S.baseSrc, S.crop);
+});
+$("baseDel").addEventListener("click",function(){ S.baseSrc=null; S.crop={x:0,y:0,z:1}; setStageImage(null); save(); });
+
 
 $("layAdd").addEventListener("click",function(){ $("fileLayer").click(); });
 $("fileLayer").addEventListener("change",function(e){
@@ -842,7 +901,7 @@ var st=$("stage");
 ["dragleave","drop"].forEach(function(ev){ st.addEventListener(ev,function(e){ e.preventDefault(); st.classList.remove("dragover"); }); });
 st.addEventListener("drop",function(e){
   var f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0]; if(!f||!/^image\//.test(f.type)) return;
-  if(!S.base) shrink(f,1100,function(src){ setBase(src,true); save(); toast("트레이너 이미지로 넣었어요"); });
+  if(!S.baseSrc) shrink(f,1400,function(src){ openCrop(src); });
   else shrink(f,700,function(src){
     S.layers.push({src:src,name:f.name.replace(/\.[^.]+$/,"").slice(0,18),x:30,y:24,w:30});
     S.lsel=S.layers.length-1; renderLayers(); syncLayerUI(); save(); toast("이미지를 추가했어요");
@@ -926,7 +985,11 @@ function closeModal(){
 $("mClose").addEventListener("click",closeModal);
 $("mDone").addEventListener("click",closeModal);
 $("modal").addEventListener("click",function(e){ if(e.target===this) closeModal(); });
-document.addEventListener("keydown",function(e){ if(e.key==="Escape"&&!$("modal").hidden) closeModal(); });
+document.addEventListener("keydown",function(e){
+  if(e.key!=="Escape") return;
+  if(!$("cropModal").hidden) closeCrop();
+  else if(!$("modal").hidden) closeModal();
+});
 $("mClear").addEventListener("click",function(){
   S.ents[S.sel]=null; renderParty(); save(); syncModal(); setTab("mon"); toast((S.sel+1)+"번 자리를 비웠어요");
 });
@@ -1001,6 +1064,86 @@ function setBg(v){ S.bg=v; paintCard(); save(); }
 $("sw_w").addEventListener("click",function(){ setBg("#ffffff"); });
 $("sw_k").addEventListener("click",function(){ setBg("#111111"); });
 $("bgPick").addEventListener("input",function(){ setBg(this.value); });
+
+/* ── 자르기 화면 ─────────────────────────────────── */
+var cropSrc = null, cropState = { x:0, y:0, z:1 }, cropNat = { w:0, h:0 }, cropFrame = { w:0, h:0 };
+
+function openCrop(src, preset){
+  cropSrc = src;
+  var img = $("cropImg"), box = $("cropBox");
+
+  // 프레임은 카드 사진 칸과 같은 비율. 화면이 좁으면 줄인다.
+  var maxW = Math.min(300, (window.innerWidth || 360) - 96);
+  var maxH = Math.max(180, (window.innerHeight || 640) * 0.42);
+  var w = maxW, h = w * STAGE_H / STAGE_W;
+  if (h > maxH) { h = maxH; w = h * STAGE_W / STAGE_H; }
+  cropFrame = { w: Math.round(w), h: Math.round(h) };
+  box.style.width = cropFrame.w + "px";
+  box.style.height = cropFrame.h + "px";
+
+  img.onload = function(){
+    cropNat = { w: img.naturalWidth, h: img.naturalHeight };
+    cropState = preset ? { x:+preset.x||0, y:+preset.y||0, z:Math.max(1,+preset.z||1) } : { x:0, y:0, z:1 };
+    // 저장된 값은 카드 크기 기준이므로 프레임 크기에 맞춰 환산한다
+    if (preset) { var r = cropFrame.w / STAGE_W; cropState.x *= r; cropState.y *= r; }
+    drawCrop();
+    $("cropModal").hidden = false;
+    document.body.classList.add("modal-open");
+  };
+  img.onerror = function(){ toast("이 이미지는 읽을 수 없어요"); };
+  img.src = src;
+}
+function closeCrop(){
+  $("cropModal").hidden = true;
+  document.body.classList.remove("modal-open");
+  cropSrc = null;
+}
+/** 프레임 밖이 비지 않도록 위치를 가둔다. */
+function clampCrop(){
+  var cover = Math.max(cropFrame.w / cropNat.w, cropFrame.h / cropNat.h);
+  var s = cover * cropState.z;
+  var limX = Math.max(0, (cropNat.w * s - cropFrame.w) / 2);
+  var limY = Math.max(0, (cropNat.h * s - cropFrame.h) / 2);
+  cropState.x = Math.max(-limX, Math.min(limX, cropState.x));
+  cropState.y = Math.max(-limY, Math.min(limY, cropState.y));
+  return s;
+}
+function drawCrop(){
+  var s = clampCrop(), img = $("cropImg");
+  img.style.width  = cropNat.w + "px";
+  img.style.height = cropNat.h + "px";
+  img.style.transform =
+    "translate(" + (cropFrame.w/2 + cropState.x - cropNat.w*s/2) + "px," +
+                   (cropFrame.h/2 + cropState.y - cropNat.h*s/2) + "px) scale(" + s + ")";
+  $("cropZoom").value = Math.round(cropState.z * 100);
+  $("cropZoomV").textContent = Math.round(cropState.z * 100) + "%";
+}
+$("cropBox").addEventListener("pointerdown", function(ev){
+  if(!cropSrc) return;
+  var box = $("cropBox");
+  box.setPointerCapture(ev.pointerId); box.classList.add("grabbing");
+  var sx = ev.clientX, sy = ev.clientY, ox = cropState.x, oy = cropState.y;
+  function mv(e){ cropState.x = ox + (e.clientX - sx); cropState.y = oy + (e.clientY - sy); drawCrop(); }
+  function up(){ box.removeEventListener("pointermove", mv); box.removeEventListener("pointerup", up); box.classList.remove("grabbing"); }
+  box.addEventListener("pointermove", mv);
+  box.addEventListener("pointerup", up);
+});
+$("cropZoom").addEventListener("input", function(){ cropState.z = +this.value / 100; drawCrop(); });
+$("cropReset").addEventListener("click", function(){ cropState = { x:0, y:0, z:1 }; drawCrop(); });
+$("cropCancel").addEventListener("click", closeCrop);
+$("cropModal").addEventListener("click", function(e){ if(e.target === this) closeCrop(); });
+$("cropApply").addEventListener("click", function(){
+  if(!cropSrc) { closeCrop(); return; }
+  // 프레임 기준 좌표를 카드 크기 기준으로 되돌려 저장한다
+  var r = STAGE_W / cropFrame.w;
+  S.baseSrc = cropSrc;
+  S.crop = { x: cropState.x * r, y: cropState.y * r, z: cropState.z };
+  closeCrop();
+  renderCrop(function(){
+    if(!trySave()) toast("사진이 커서 이번 화면에만 보여요");
+    else toast("사진을 넣었어요");
+  });
+});
 
 /* ── 화면에 맞춰 카드 배율 정하기 (비율은 항상 유지) ── */
 var CARD_W=1120, CARD_H=700;
@@ -1116,7 +1259,7 @@ $("moreBtn").addEventListener("click",function(e){ e.stopPropagation(); setMenu(
 $("moreMenu").addEventListener("click",function(e){ e.stopPropagation(); });
 document.addEventListener("click",function(){ if(menuOpen()) setMenu(false); });
 document.addEventListener("keydown",function(e){
-  if(e.key==="Escape" && menuOpen() && $("modal").hidden){ setMenu(false); $("moreBtn").focus(); }
+  if(e.key==="Escape" && menuOpen() && $("modal").hidden && $("cropModal").hidden){ setMenu(false); $("moreBtn").focus(); }
 });
 
 $("lockBtn").addEventListener("click",function(){
@@ -1140,6 +1283,8 @@ themeBtn.addEventListener("click",function(){
 
 /* ── save / share ────────────────────────────────── */
 function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} sync(); }
+/** 저장이 용량 때문에 실패했는지 알려준다 (사진처럼 큰 값을 넣을 때). */
+function trySave(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); sync(); return true; }catch(e){ sync(); return false; } }
 function b64e(s){ var b=new TextEncoder().encode(s),o=""; for(var i=0;i<b.length;i++) o+=String.fromCharCode(b[i]); return btoa(o).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
 function b64d(c){ var s=c.replace(/-/g,"+").replace(/_/g,"/").trim(); while(s.length%4) s+="=";
   var bin=atob(s),b=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) b[i]=bin.charCodeAt(i);
@@ -1168,7 +1313,7 @@ function decode(code){
     n.ents.push({id:v[0],nick:String(v[1]||"").slice(0,12),size:SIZES.indexOf(v[2])>=0?v[2]:"",
       title:String(v[3]||""),ribbon:String(v[4]||""),g:gs.indexOf(v[5])>=0?v[5]:(gs.length?gs[0]:"n"),sh:!!v[6]});
   }
-  n.base=S.base; n.baseT=S.baseT; n.layers=S.layers;
+  n.baseSrc=S.baseSrc; n.crop=S.crop; n.layers=S.layers;
   return n;
 }
 function sync(){ $("outCode").value=encode(); }
@@ -1231,8 +1376,7 @@ function apply(n){
     l.classList.toggle("on", l.querySelector("input").checked);
   });
   paintCard();
-  setBase(S.base,false);
-  $("baseZoom").value=Math.round(S.baseT.z*100); $("baseZoomV").textContent=Math.round(S.baseT.z*100)+"%";
+  renderCrop();
   S.sel=Math.min(5,Math.max(0,S.sel|0));
   renderParty(); renderLayers(); syncLayerUI(); sync();
   try{ localStorage.setItem(KEY,JSON.stringify(S)); }catch(e){}
@@ -1255,7 +1399,7 @@ function start(hot){
     if(o&&o.v===VER&&Array.isArray(o.ents)){ o.ents=o.ents.map(function(e){ return e&&byId[e.id]?e:null; }).slice(0,6);
       while(o.ents.length<6) o.ents.push(null);
       o.show=o.show||{name:1,quote:1,desc:1,party:1}; o.layers=o.layers||[];
-      o.party=o.party||{x:4,y:54}; o.baseT=o.baseT||{x:0,y:0,z:1}; n=o; } } }catch(e){} }
+      o.party=o.party||{x:4,y:54}; o.crop=o.crop||{x:0,y:0,z:1}; n=o; } } }catch(e){} }
   if(!n) n=S;
   fit();
   apply(n);
