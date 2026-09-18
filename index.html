@@ -808,7 +808,8 @@ $("party").addEventListener("pointerdown", function(ev){
   if(ev.target.closest(".ent")) return;
   var R=stageRect(), p=$("party");
   var ox=ev.clientX-(R.left+S.party.x/100*R.width), oy=ev.clientY-(R.top+S.party.y/100*R.height);
-  p.setPointerCapture(ev.pointerId); p.classList.add("drag");
+  try{ p.setPointerCapture(ev.pointerId); }catch(e){}
+  p.classList.add("drag");
   function mv(e){
     S.party.x=Math.max(-5,Math.min(95,(e.clientX-ox-R.left)/R.width*100));
     S.party.y=Math.max(-5,Math.min(95,(e.clientY-oy-R.top)/R.height*100));
@@ -1156,7 +1157,9 @@ function drawCrop(){
 $("cropBox").addEventListener("pointerdown", function(ev){
   if(!cropSrc) return;
   var box = $("cropBox");
-  box.setPointerCapture(ev.pointerId); box.classList.add("grabbing");
+  /* 포인터 잡기는 실패할 수 있다 — 여기서 멈추면 드래그가 통째로 죽는다 */
+  try{ box.setPointerCapture(ev.pointerId); }catch(e){}
+  box.classList.add("grabbing");
   var sx = ev.clientX, sy = ev.clientY, ox = cropState.x, oy = cropState.y;
   function mv(e){ cropState.x = ox + (e.clientX - sx); cropState.y = oy + (e.clientY - sy); drawCrop(); }
   function up(){ box.removeEventListener("pointermove", mv); box.removeEventListener("pointerup", up); box.classList.remove("grabbing"); }

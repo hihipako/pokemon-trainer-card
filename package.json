@@ -4,16 +4,20 @@
   "description": "포켓몬 트레이너 카드를 만드는 단일 HTML 도구 — 도트 스프라이트 1342종, 한글 이름·증표·리본 내장",
   "private": true,
   "license": "MIT",
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "build": "node tools/build.js",
     "build:data": "node tools/build.js data",
     "build:sheets": "node tools/build.js sheets",
     "build:html": "node tools/build.js html",
-    "start": "node tools/serve.js"
+    "start": "node tools/serve.js",
+    "test": "node tools/smoke.js"
   },
   "devDependencies": {
     "pngjs": "^7.0.0",
-    "sharp": "^0.34.0"
+    "sharp": "^0.34.0",
+    "jsdom": "^29.0.0"
   }
 }
