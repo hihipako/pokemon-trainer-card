@@ -183,7 +183,13 @@ body.exporting .bar:hover,body.exporting .ent:hover{border-color:var(--cln)}
 .layer{position:absolute;touch-action:none;cursor:move}
 .layer img{display:block;width:100%;height:auto;user-select:none;-webkit-user-drag:none;pointer-events:none}
 .layer.sel{outline:2px solid var(--sel);outline-offset:2px}
-.layer .grip{position:absolute;right:-7px;bottom:-7px;width:16px;height:16px;border-radius:50%;background:var(--sel);border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:nwse-resize;display:none}
+.layer .grip{
+  position:absolute;right:-11px;bottom:-11px;width:24px;height:24px;border-radius:50%;
+  background:var(--sel);border:3px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.45);
+  cursor:nwse-resize;display:none;touch-action:none;
+}
+/* 손가락으로도 잡히도록 보이는 크기보다 넉넉한 영역을 준다 */
+.layer .grip::after{content:"";position:absolute;inset:-12px}
 .layer.sel .grip{display:block}
 body.locked .layer{cursor:default;pointer-events:none}
 
@@ -721,13 +727,21 @@ function renderLayers(){
     d.addEventListener("pointerdown", function(ev){
       if(document.body.classList.contains("locked")) return;
       ev.stopPropagation();
-      S.lsel=i; renderLayers(); syncLayerUI();
-      if(ev.target===gr) startResize(ev,i); else startMove(ev,i);
+      /* 여기서 renderLayers() 를 부르면 방금 누른 요소가 통째로 지워져
+         이어지는 pointermove 가 오지 않는다. 선택 표시만 갈아 끼운다. */
+      S.lsel=i; markLayerSel(); syncLayerUI();
+      if(ev.target===gr) startResize(ev,i,d); else startMove(ev,i,d);
     });
     st.insertBefore(d, $("party"));
   });
   renderLayerList();
 }
+/** 선택된 레이어에만 표시를 남긴다 (요소를 다시 만들지 않는다). */
+function markLayerSel(){
+  var nodes=$("stage").querySelectorAll(".layer");
+  for(var n=0;n<nodes.length;n++) nodes[n].classList.toggle("sel", n===S.lsel);
+}
+function layerNode(i){ return $("stage").querySelectorAll(".layer")[i] || null; }
 function renderLayerList(){
   var w=$("layList"); w.textContent="";
   if(!S.layers.length){ var e=document.createElement("p"); e.className="mini"; e.textContent="추가한 이미지가 없어요."; w.appendChild(e); return; }
@@ -736,7 +750,7 @@ function renderLayerList(){
     var im=document.createElement("img"); im.src=L.src; im.alt="";
     var nm=document.createElement("div"); nm.className="nm"; nm.textContent=(L.name||("이미지 "+(i+1)))+" · "+Math.round(L.w)+"%";
     var b=document.createElement("button"); b.className="btn g sm"; b.type="button"; b.textContent="선택";
-    b.addEventListener("click",function(){ S.lsel=i; renderLayers(); syncLayerUI(); });
+    b.addEventListener("click",function(){ S.lsel=i; markLayerSel(); syncLayerUI(); });
     r.appendChild(im); r.appendChild(nm); r.appendChild(b); w.appendChild(r);
   });
 }
@@ -747,10 +761,10 @@ function syncLayerUI(){
   renderLayerList();
 }
 function stageRect(){ return $("stage").getBoundingClientRect(); }
-function startMove(ev,i){
+function startMove(ev,i,el){
   var L=S.layers[i], R=stageRect();
   var ox=ev.clientX-(R.left+L.x/100*R.width), oy=ev.clientY-(R.top+L.y/100*R.height);
-  var el=ev.currentTarget; el.setPointerCapture(ev.pointerId);
+  try{ el.setPointerCapture(ev.pointerId); }catch(e){}
   function mv(e){
     L.x=Math.max(-20,Math.min(115,(e.clientX-ox-R.left)/R.width*100));
     L.y=Math.max(-20,Math.min(115,(e.clientY-oy-R.top)/R.height*100));
@@ -759,9 +773,9 @@ function startMove(ev,i){
   function up(){ el.removeEventListener("pointermove",mv); el.removeEventListener("pointerup",up); save(); }
   el.addEventListener("pointermove",mv); el.addEventListener("pointerup",up);
 }
-function startResize(ev,i){
+function startResize(ev,i,el){
   var L=S.layers[i], R=stageRect();
-  var el=ev.currentTarget; el.setPointerCapture(ev.pointerId);
+  try{ el.setPointerCapture(ev.pointerId); }catch(e){}
   var sx=ev.clientX, sw=L.w;
   function mv(e){
     L.w=Math.max(4,Math.min(160, sw+(e.clientX-sx)/R.width*100));
@@ -893,7 +907,8 @@ $("layFront").addEventListener("click",function(){
 });
 $("laySize").addEventListener("input",function(){
   var L=S.layers[S.lsel]; if(!L) return;
-  L.w=+this.value; $("laySizeV").textContent=this.value+"%"; renderLayers();
+  L.w=+this.value; $("laySizeV").textContent=this.value+"%";
+  var node=layerNode(S.lsel); if(node) node.style.width=L.w+"%";
 });
 $("laySize").addEventListener("change",save);
 
