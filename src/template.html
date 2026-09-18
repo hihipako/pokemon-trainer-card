@@ -123,6 +123,7 @@ body.exporting .bar:hover,body.exporting .ent:hover{border-color:var(--cln)}
   transition:background .2s,color .2s;
   width:var(--cw);height:var(--ch);
   transform:scale(var(--k));transform-origin:top left;
+  position:relative;overflow:hidden;   /* 스티커가 카드 전체를 쓰되 밖으로는 안 나간다 */
 }
 
 .side{display:flex;flex-direction:column;gap:11px;min-width:0;min-height:0}
@@ -194,7 +195,8 @@ body.exporting .bar:hover,body.exporting .ent:hover{border-color:var(--cln)}
 body.locked .layer{cursor:default;pointer-events:none}
 
 
-.party{position:absolute;display:flex;gap:7px;touch-action:none;cursor:move}
+/* 쌓임 순서: 사진 < 스티커(20) < 포켓몬 도트(30) */
+.party{position:absolute;z-index:30;display:flex;gap:7px;touch-action:none;cursor:move}
 .party.drag{opacity:.9}
 body.locked .party{cursor:default}
 body.locked .ent{cursor:default}
@@ -590,7 +592,7 @@ function fresh(){
     show:{name:true,quote:true,desc:true,party:true},
     name:"", role:"", quote:"", desc:"",
     baseSrc:null, crop:{x:0,y:0,z:1},
-    layers:[], lsel:null,
+    layers:[], lsel:null, layerSpace:"card",
     party:{x:4,y:54},
     ents:[null,null,null,null,null,null],
     sel:0
@@ -715,12 +717,12 @@ function renderBars(){
 
 /* ── layers ──────────────────────────────────────── */
 function renderLayers(){
-  var st=$("stage");
+  var st=$("card");
   Array.prototype.slice.call(st.querySelectorAll(".layer")).forEach(function(n){ n.remove(); });
   S.layers.forEach(function(L,i){
     var d=document.createElement("div");
     d.className="layer"+(S.lsel===i?" sel":"");
-    d.style.left=L.x+"%"; d.style.top=L.y+"%"; d.style.width=L.w+"%"; d.style.zIndex=10+i;
+    d.style.left=L.x+"%"; d.style.top=L.y+"%"; d.style.width=L.w+"%"; d.style.zIndex=20+i;
     var im=document.createElement("img"); im.src=L.src; im.alt="";
     d.appendChild(im);
     var gr=document.createElement("div"); gr.className="grip"; d.appendChild(gr);
@@ -732,16 +734,16 @@ function renderLayers(){
       S.lsel=i; markLayerSel(); syncLayerUI();
       if(ev.target===gr) startResize(ev,i,d); else startMove(ev,i,d);
     });
-    st.insertBefore(d, $("party"));
+    st.appendChild(d);
   });
   renderLayerList();
 }
 /** 선택된 레이어에만 표시를 남긴다 (요소를 다시 만들지 않는다). */
 function markLayerSel(){
-  var nodes=$("stage").querySelectorAll(".layer");
+  var nodes=$("card").querySelectorAll(".layer");
   for(var n=0;n<nodes.length;n++) nodes[n].classList.toggle("sel", n===S.lsel);
 }
-function layerNode(i){ return $("stage").querySelectorAll(".layer")[i] || null; }
+function layerNode(i){ return $("card").querySelectorAll(".layer")[i] || null; }
 function renderLayerList(){
   var w=$("layList"); w.textContent="";
   if(!S.layers.length){ var e=document.createElement("p"); e.className="mini"; e.textContent="추가한 이미지가 없어요."; w.appendChild(e); return; }
@@ -761,8 +763,25 @@ function syncLayerUI(){
   renderLayerList();
 }
 function stageRect(){ return $("stage").getBoundingClientRect(); }
+function cardRect(){ return $("card").getBoundingClientRect(); }   /* 스티커는 카드 전체 기준 */
+
+/* 예전에는 스티커 좌표가 사진 칸 기준이었다. 카드 기준으로 옮겨 자리를 지킨다. */
+function migrateLayers(o){
+  if(!o || o.layerSpace === "card") return o;
+  var lx = (18 + STAGE_W + 16) / 1120 * 100;   // 카드 안 사진 칸의 왼쪽 (%)
+  var lw = STAGE_W / 1120 * 100;               // 사진 칸 폭 (%)
+  var ly = 18 / 700 * 100;
+  var lh = STAGE_H / 700 * 100;
+  (o.layers || []).forEach(function(L){
+    L.x = lx + (+L.x || 0) * lw / 100;
+    L.y = ly + (+L.y || 0) * lh / 100;
+    L.w = (+L.w || 30) * lw / 100;
+  });
+  o.layerSpace = "card";
+  return o;
+}
 function startMove(ev,i,el){
-  var L=S.layers[i], R=stageRect();
+  var L=S.layers[i], R=cardRect();
   var ox=ev.clientX-(R.left+L.x/100*R.width), oy=ev.clientY-(R.top+L.y/100*R.height);
   try{ el.setPointerCapture(ev.pointerId); }catch(e){}
   function mv(e){
@@ -774,7 +793,7 @@ function startMove(ev,i,el){
   el.addEventListener("pointermove",mv); el.addEventListener("pointerup",up);
 }
 function startResize(ev,i,el){
-  var L=S.layers[i], R=stageRect();
+  var L=S.layers[i], R=cardRect();
   try{ el.setPointerCapture(ev.pointerId); }catch(e){}
   var sx=ev.clientX, sw=L.w;
   function mv(e){
@@ -891,7 +910,7 @@ $("fileLayer").addEventListener("change",function(e){
   fls.forEach(function(f){
     if(!/^image\//.test(f.type)) return;
     shrink(f,700,function(src){
-      S.layers.push({src:src,name:f.name.replace(/\.[^.]+$/,"").slice(0,18),x:30,y:24,w:30});
+      S.layers.push({src:src,name:f.name.replace(/\.[^.]+$/,"").slice(0,18),x:38,y:32,w:18});
       S.lsel=S.layers.length-1; renderLayers(); syncLayerUI(); save();
       toast("이미지를 추가했어요 — 끌어서 옮기세요");
     });
@@ -919,7 +938,7 @@ st.addEventListener("drop",function(e){
   var f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0]; if(!f||!/^image\//.test(f.type)) return;
   if(!S.baseSrc) shrink(f,1400,function(src){ openCrop(src); });
   else shrink(f,700,function(src){
-    S.layers.push({src:src,name:f.name.replace(/\.[^.]+$/,"").slice(0,18),x:30,y:24,w:30});
+    S.layers.push({src:src,name:f.name.replace(/\.[^.]+$/,"").slice(0,18),x:38,y:32,w:18});
     S.lsel=S.layers.length-1; renderLayers(); syncLayerUI(); save(); toast("이미지를 추가했어요");
   });
 });
@@ -1415,7 +1434,7 @@ function start(hot){
     if(o&&o.v===VER&&Array.isArray(o.ents)){ o.ents=o.ents.map(function(e){ return e&&byId[e.id]?e:null; }).slice(0,6);
       while(o.ents.length<6) o.ents.push(null);
       o.show=o.show||{name:1,quote:1,desc:1,party:1}; o.layers=o.layers||[];
-      o.party=o.party||{x:4,y:54}; o.crop=o.crop||{x:0,y:0,z:1}; n=o; } } }catch(e){} }
+      o.party=o.party||{x:4,y:54}; o.crop=o.crop||{x:0,y:0,z:1}; n=migrateLayers(o); } } }catch(e){} }
   if(!n) n=S;
   fit();
   apply(n);
