@@ -183,9 +183,27 @@ async function run() {
   check("편집창 닫기", () => { click($("mClose")); return $("modal").hidden === true; });
 
   /* ── 3.5 트레이너 칭호 ──────────────────────── */
-  check("칭호 목록이 260개", () => {
+  check("칭호 목록이 215개", () => {
     const n = $("roleSel").querySelectorAll("option").length;
-    return n === 261 || "개수 " + n;
+    return n === 216 || "개수 " + n;          // 직접 입력 1 + 215
+  });
+  check("옛 이름 대신 한국 명칭을 쓴다", () => {
+    const all = [...$("roleSel").querySelectorAll("option")].map(o => o.value);
+    const old = ["중", "기도사", "수리공", "괴짜 연구원", "맹수조련사", "비지니스맨"].filter(v => all.includes(v));
+    const want = ["수행자", "주술사", "전기 작업원", "연구원", "맹수 조련사", "비즈니스맨"].filter(v => !all.includes(v));
+    return (old.length === 0 && want.length === 0) || "옛이름 남음: " + old + " / 빠짐: " + want;
+  });
+  check("조직명·1인 직책은 빠져 있다", () => {
+    const all = [...$("roleSel").querySelectorAll("option")].map(o => o.value);
+    const left = ["로켓단", "스컬단", "보스", "타워타이쿤", "팩토리헤드", "서브웨이마스터", "에테르대표"]
+      .filter(v => all.includes(v));
+    return left.length === 0 || "남음: " + left.join(", ");
+  });
+  check("트레이너군은 그대로 남아 있다", () => {
+    const all = [...$("roleSel").querySelectorAll("option")].map(o => o.value);
+    const gone = ["장로", "섬의 왕", "포켓몬 레인저", "스컬단 조무래기", "에테르재단 직원"]
+      .filter(v => !all.includes(v));
+    return gone.length === 0 || "빠짐: " + gone.join(", ");
   });
   check("보기에 고스트 트레이너 · 가라르 챔피언이 있음", () => {
     const all = [...$("roleSel").querySelectorAll("option")].map(o => o.value);
