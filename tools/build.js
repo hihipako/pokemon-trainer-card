@@ -302,6 +302,48 @@ async function buildMarksAndRibbons() {
   return { marks, ribbons };
 }
 
+/* ────────────────────────── 트레이너 칭호(트레이너군)
+
+   위키의 '포켓몬 트레이너/종류' 문서는 7세대까지만 싣고 있어
+   8·9세대는 여기에 적어 둔다. */
+const TRAINER_GEN8 = ["마스터","모델","택시 드라이버","포스트맨","담력시험커플","댄서블 유닛",
+  "마스터 도장 문하생","비즈니스 파트너","의료팀","체육관 트레이너"];
+const TRAINER_GEN9 = ["등산걸","배달원","학생","축제소년","축제소녀","북신귀면대"];
+const REGIONS = ["관동","성도","호연","신오","하나","칼로스","알로라","가라르","팔데아"];
+
+async function buildTrainerRoles(typeList) {
+  const wiki = await fetchWiki("포켓몬 트레이너/종류", "trainer-classes.wiki");
+  const groups = [];
+  let cur = null;
+  for (const line of wiki.split("\n")) {
+    const h = line.match(/^==\s*(.+?)\s*==\s*$/);
+    if (h) { cur = { g: h[1], items: [] }; groups.push(cur); continue; }
+    const m = line.match(/^\*\s*\[\[([^\]]+)\]\]/);
+    if (m && cur) {
+      const t = m[1];
+      cur.items.push(t.includes("|") ? t.split("|")[1].trim() : t.trim());
+    }
+  }
+  groups.push({ g: "8세대", items: TRAINER_GEN8 });
+  groups.push({ g: "9세대", items: TRAINER_GEN9 });
+
+  // 타입 전문가 — 18타입에서 만들어 낸다
+  const types = Object.keys(typeList).sort((a, b) => a - b).map(id => typeList[id].ko);
+  groups.push({ g: "타입 전문가", items: types.map(t => t + " 트레이너") });
+  // 지방 챔피언 · 직책
+  groups.push({ g: "지방 · 직책", items: REGIONS.map(r => r + " 챔피언")
+    .concat(["포켓몬 마스터", "체육관 관장", "사천왕", "챔피언", "라이벌", "트레이너"]) });
+
+  // 중복 정리 — 먼저 나온 그룹이 이긴다
+  const seen = new Set();
+  const roles = [];
+  for (const grp of groups) {
+    const items = grp.items.filter(it => it && !seen.has(it) && (seen.add(it), true));
+    if (items.length) roles.push({ g: grp.g, items: items });
+  }
+  return roles;
+}
+
 /* ─────────────────────────────────────────────── 스프라이트 */
 
 async function fetchSprites(ids) {
@@ -418,13 +460,14 @@ async function buildData({ withSprites }) {
   entries = built.entries;
 
   const { marks, ribbons } = await buildMarksAndRibbons();
-  const payload = { cols: COLS, types: built.typeList, mons: entries, marks, ribbons };
+  const roles = await buildTrainerRoles(built.typeList);
+  const payload = { cols: COLS, types: built.typeList, mons: entries, marks, ribbons, roles };
   mkdir(path.join(ROOT, "data"));
   fs.writeFileSync(path.join(ROOT, "data", "payload.json"), JSON.stringify(payload));
 
   log(`데이터 ${entries.length}종 ` +
       `(기본 ${entries.filter(e => !e.f).length} / 폼 ${entries.filter(e => e.f).length}) · ` +
-      `증표 ${marks.length} · 리본 ${ribbons.length}`);
+      `증표 ${marks.length} · 리본 ${ribbons.length} · 트레이너 칭호 ${roles.reduce((n,g)=>n+g.items.length,0)}`);
   if (built.englishFallback.length) {
     log(`  한글 폼 이름이 없어 영문으로 둔 것 ${built.englishFallback.length}종: ` +
         built.englishFallback.slice(0, 8).join(", ") + (built.englishFallback.length > 8 ? " …" : ""));

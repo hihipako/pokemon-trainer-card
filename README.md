@@ -12,6 +12,8 @@ HTML 파일 하나 + 스프라이트시트 두 장으로 돌아가고, 서버도
 **카드 구성**
 
 - 이름 · 신분 / 한 줄 대사 / 설명 — 넣고 싶은 것만 켜서 씁니다
+- 신분은 **트레이너 칭호 260종** 목록에서 고르거나 직접 씁니다 —
+  1~9세대 트레이너군 225종에 타입 전문가()와 지방 챔피언()을 더한 것
 - 트레이너 이미지를 올리면 자르기 화면이 열립니다. 카드의 사진 칸과 같은 비율로 잘리며,
   끌어서 위치를 잡고 슬라이더로 크기를 정합니다. 카드 위에서는 움직이지 않습니다
 - 스티커 · 로고 이미지를 여러 장 얹어 **카드 어디로든** 옮기고 크기를 바꿉니다
@@ -50,7 +52,7 @@ npm run build          # 데이터 → 스프라이트 → 시트 → index.html
 | `npm run build:sheets` | 스프라이트를 내려받아 시트 두 장만 |
 | `npm run build:html` | `src/template.html` + `data/payload.json` → `index.html` |
 | `npm start` | `http://localhost:8080` 으로 띄우기 |
-| `npm test` | 가상 브라우저로 화면을 실제로 눌러보는 점검 (48항목) |
+| `npm test` | 가상 브라우저로 화면을 실제로 눌러보는 점검 (53항목) |
 
 내려받은 원본(CSV · 위키 문서 · 스프라이트 2684장)은 `.cache/` 에 쌓이고 재실행 때 재사용됩니다.
 전체 빌드는 처음 한 번만 네트워크를 쓰며 1~2분쯤 걸립니다.
@@ -84,7 +86,8 @@ tools/smoke.js        가상 브라우저로 화면을 눌러보는 점검
 
 - 포켓몬 도트 스프라이트 · 한글 이름 · 타입 · 성별비 — [PokéAPI](https://pokeapi.co/)
   ([sprites](https://github.com/PokeAPI/sprites), [pokeapi](https://github.com/PokeAPI/pokeapi))
-- 증표(칭호) 98종 · 리본 101종 — [포켓몬 위키](https://pokemon.fandom.com/ko/wiki/증표)
+- 증표(칭호) 98종 · 리본 101종 · 트레이너군 225종 — [포켓몬 위키](https://pokemon.fandom.com/ko/wiki/증표)
+  (트레이너군 문서는 7세대까지만 실려 있어 8·9세대는 `tools/build.js` 에 적어 두었습니다)
 
 한글 폼 이름이 원본에 없는 경우(히스이 · 팔데아 · 거다이맥스 등)는
 `tools/build.js` 의 `FORM_KO` 표에서 채웁니다. 그래도 없는 15종은 영문으로 남습니다.

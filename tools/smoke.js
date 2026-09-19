@@ -182,6 +182,30 @@ async function run() {
   });
   check("편집창 닫기", () => { click($("mClose")); return $("modal").hidden === true; });
 
+  /* ── 3.5 트레이너 칭호 ──────────────────────── */
+  check("칭호 목록이 260개", () => {
+    const n = $("roleSel").querySelectorAll("option").length;
+    return n === 261 || "개수 " + n;
+  });
+  check("보기에 고스트 트레이너 · 가라르 챔피언이 있음", () => {
+    const all = [...$("roleSel").querySelectorAll("option")].map(o => o.value);
+    const missing = ["고스트 트레이너", "가라르 챔피언", "반바지 꼬마", "마스터 도장 문하생", "북신귀면대"]
+      .filter(v => !all.includes(v));
+    return missing.length === 0 || "없음: " + missing.join(", ");
+  });
+  check("고르면 신분 칸에 들어감", () => {
+    change($("roleSel"), "고스트 트레이너");
+    return $("fx_role").value === "고스트 트레이너" || $("fx_role").value;
+  });
+  check("직접 쓰면 목록 선택이 풀림", () => {
+    input($("fx_role"), "수상한 여자");
+    return $("roleSel").value === "" || $("roleSel").value;
+  });
+  check("칭호도 공유 코드에 실림", () => {
+    change($("roleSel"), "가라르 챔피언");
+    return /^C1./.test($("outCode").value) && $("fx_role").value === "가라르 챔피언";
+  });
+
   /* ── 4. 공유 코드 왕복 ──────────────────────── */
   let code;
   check("코드에 내용이 담김", () => {
