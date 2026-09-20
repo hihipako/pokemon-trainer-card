@@ -138,6 +138,29 @@ async function run() {
     const dots = alola.parentElement ? 0 : 0;
     return true;
   });
+  check("겉모습 폼 — 트리토돈 동쪽바다", () => {
+    input($("q"), "트리토돈");
+    const forms = [...doc.querySelectorAll("#res .rit")].map(el => (el.querySelector(".rf") || {}).textContent || "기본");
+    return forms.includes("동쪽바다") || "나온 것: " + forms.join(", ");
+  });
+  check("겉모습 폼 — 플라제스 꽃 색깔", () => {
+    input($("q"), "플라제스");
+    const forms = [...doc.querySelectorAll("#res .rit")].map(el => (el.querySelector(".rf") || {}).textContent || "기본");
+    const want = ["노란 꽃", "오렌지색 꽃", "파란 꽃", "하얀 꽃"].filter(v => !forms.includes(v));
+    return want.length === 0 || "빠진 것: " + want.join(", ");
+  });
+  check("겉모습 폼 — 비비용 20종 · 안농 28종", () => {
+    input($("q"), "비비용");
+    const v = doc.querySelectorAll("#res .rit").length;
+    input($("q"), "안농");
+    const u = doc.querySelectorAll("#res .rit").length;
+    return (v === 20 && u === 28) || "비비용 " + v + " · 안농 " + u;
+  });
+  check("마휘핑 사탕 조합 이름이 한글", () => {
+    input($("q"), "마휘핑");
+    const forms = [...doc.querySelectorAll("#res .rit")].map(el => (el.querySelector(".rf") || {}).textContent || "");
+    return forms.includes("밀키루비 · 베리사탕") || "예: " + forms.slice(0, 6).join(", ");
+  });
   check("고르면 1번 자리에 들어감", () => {
     input($("q"), "님피아");
     click(doc.querySelector("#res .rit"));

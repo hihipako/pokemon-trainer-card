@@ -19,6 +19,7 @@ const CSV   = path.join(CACHE, "csv");
 const WIKI  = path.join(CACHE, "wiki");
 const SPR   = path.join(CACHE, "sprites");
 const MISSING_FILE = path.join(CACHE, "missing-sprites.json");
+const SHEET_MAP    = path.join(CACHE, "sheet-map.json");   // 시트 칸 순서 = 스프라이트 파일명
 
 const CSV_BASE    = "https://raw.githubusercontent.com/PokeAPI/pokeapi/master/data/v2/csv";
 const SPRITE_BASE = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon";
@@ -84,6 +85,7 @@ const CSV_FILES = [
   "pokemon.csv", "pokemon_species.csv", "pokemon_species_names.csv",
   "pokemon_types.csv", "type_names.csv",
   "pokemon_forms.csv", "pokemon_form_names.csv",
+  "items.csv", "item_names.csv",            // 마휘핑 사탕 이름
 ];
 
 async function fetchCsv() {
@@ -129,6 +131,25 @@ const FORM_KO = {
   artisan: "장인의 모습", masterpiece: "명작의 모습", counterfeit: "모조품",
   bloodmoon: "블러드문", "wellspring-mask": "우물의 가면", "hearthflame-mask": "화덕의 가면",
   "cornerstone-mask": "주춧돌의 가면", "teal-mask": "박사의 가면", unremarkable: "평범한 모습",
+  "paldea-combat-breed": "팔데아 컴뱃", "paldea-blaze-breed": "팔데아 블레이즈",
+  "paldea-aqua-breed": "팔데아 아쿠아",
+  "mega-z": "메가", "mega-male": "메가(♂)", "mega-female": "메가(♀)",
+  "white-striped": "흰줄무늬", "own-tempo": "마이페이스", female: "암컷의 모습",
+  cosplay: "코스프레", starter: "파트너", unknown: "???",
+};
+
+/* ─────────────────────────── 겉모습 폼 (전투에 영향 없는 모습 차이)
+
+   트리토돈 동쪽바다, 플라제스 꽃 색깔처럼 능력이 같고 모습만 다른 폼은
+   PokeAPI 의 pokemon 표에 없고 pokemon_forms 에만 있다. 도트는
+   sprites/pokemon/{번호}-{폼}.png 로 따로 존재한다. */
+
+/* 도트가 기본형과 똑같아 넣어봐야 구별되지 않는 것들 */
+const COSMETIC_SKIP = new Set(["scatterbug", "spewpa", "mothim"]);
+
+/* CSV 에 한글 이름이 없는 겉모습 폼 */
+const COSMETIC_KO = {
+  "spiky-eared": "귀쫑긋",
 };
 
 /* ─────────────────────────────────────────────── 포켓몬 데이터 */
@@ -170,7 +191,6 @@ function buildPokemon(missingSprites = new Set()) {
     const id = +p.id, speciesId = +p.species_id;
     const sp = speciesById[p.species_id];
     if (!sp || speciesId > MAX_SPECIES) continue;
-    if (missingSprites.has(p.id)) continue;
     const ts = (types[p.id] || []).filter(Boolean);
     if (!ts.length) continue;
 
@@ -197,13 +217,77 @@ function buildPokemon(missingSprites = new Set()) {
       t: ts,
     });
   }
-  entries.sort((a, b) => a.d - b.d || a.i - b.i);
-  entries.forEach((e, n) => (e.x = n));
-
   const typeList = {};
   for (const id of Object.keys(typeKo)) if (+id <= 18) typeList[id] = { ko: typeKo[id], en: typeEn[id] };
 
-  return { entries, typeList, englishFallback };
+  /* ── 겉모습 폼 붙이기 ── */
+  const items = parseCSV(path.join(CSV, "items.csv"));
+  const itemNames = parseCSV(path.join(CSV, "item_names.csv"));
+  const itemKo = {};
+  for (const n of itemNames) if (+n.local_language_id === KO) itemKo[n.item_id] = n.name;
+  const sweetKo = {};                       // strawberry-sweet → 딸기사탕
+  for (const it of items) {
+    if (!/-sweet$/.test(it.identifier)) continue;
+    const nm = itemKo[it.id];
+    if (nm) sweetKo[it.identifier] = nm.replace(/공예$/, "");
+  }
+  const creamKo = {};                       // vanilla-cream → 밀키바닐라
+  const arceusKo = {};                      // bug → 벌레
+  for (const id of Object.keys(typeList)) arceusKo[typeList[id].en.toLowerCase()] = typeList[id].ko;
+
+  const byPokemonId = Object.fromEntries(entries.map(e => [String(e.i), e]));
+  // 마휘핑 기본 사탕(딸기) 쪽 이름에서 크림 이름을 먼저 모은다
+  for (const f of forms) {
+    const m = /^(.+)-strawberry-sweet$/.exec(f.form_identifier || "");
+    const koRow = formKo[f.id];
+    if (m && koRow && koRow.form_name) creamKo[m[1]] = koRow.form_name;
+  }
+
+  const cosmetic = [];
+  let cosmeticNoKo = 0;
+  for (const f of forms) {
+    if (+f.is_default === 1) continue;
+    const parent = byPokemonId[f.pokemon_id];
+    if (!parent) continue;                              // 본체가 목록에 없으면 건너뜀
+    const ident = (f.form_identifier || "").trim();
+    if (!ident) continue;
+    const base = pokemon.find(p => p.id === f.pokemon_id);
+    if (!base || COSMETIC_SKIP.has(base.identifier)) continue;
+
+    let label = "";
+    const koRow = formKo[f.id];
+    if (koRow && koRow.form_name) label = koRow.form_name;
+    else if (COSMETIC_KO[ident]) label = COSMETIC_KO[ident];
+    else if (FORM_KO[ident]) label = FORM_KO[ident];
+    else {
+      const sweet = /^(.+?)-((?:[a-z]+-)?sweet)$/.exec(ident);   // 마휘핑
+      const arceus = base.identifier === "arceus" && arceusKo[ident];
+      if (sweet && creamKo[sweet[1]] && sweetKo[sweet[2]]) label = creamKo[sweet[1]] + " · " + sweetKo[sweet[2]];
+      else if (arceus) label = arceus;
+      else { label = titleCase(ident); cosmeticNoKo++; englishFallback.push(base.identifier + "-" + ident); }
+    }
+
+    cosmetic.push(Object.assign({}, parent, {
+      i: 1000000 + (+f.id),        // 공유 코드용 고유 번호 (실제 pokemon 번호와 안 겹치게)
+      f: label,
+      _sp: f.pokemon_id + "-" + ident,
+    }));
+  }
+  entries.forEach(e => { e._sp = String(e.i); });
+  entries.push(...cosmetic);
+
+  // 도트가 없는 것은 여기서 한 번에 걸러 낸다
+  for (let n = entries.length - 1; n >= 0; n--)
+    if (missingSprites.has(entries[n]._sp)) entries.splice(n, 1);
+
+  entries.sort((a, b) => a.d - b.d || a.i - b.i);
+  entries.forEach((e, n) => (e.x = n));
+
+  // 도트가 없어 빠진 것까지 세면 헷갈리므로, 실제로 남은 것만 보고한다
+  const stillEnglish = entries.filter(e => e.f && /^[A-Za-z][A-Za-z0-9 ]{2,}$/.test(e.f))
+                              .map(e => e.e + " — " + e.f);
+  return { entries, typeList, englishFallback: stillEnglish,
+           cosmeticCount: cosmetic.length, cosmeticNoKo };
 }
 
 /* ─────────────────────────────── 증표(칭호) · 리본 — 포켓몬 위키 */
@@ -380,25 +464,25 @@ async function buildTrainerRoles(typeList) {
 
 /* ─────────────────────────────────────────────── 스프라이트 */
 
-async function fetchSprites(ids) {
+async function fetchSprites(keys) {
   for (const kind of ["normal", "shiny"]) mkdir(path.join(SPR, kind));
   const jobs = [];
-  for (const id of ids) {
-    jobs.push({ id, kind: "normal", url: `${SPRITE_BASE}/${id}.png` });
-    jobs.push({ id, kind: "shiny",  url: `${SPRITE_BASE}/shiny/${id}.png` });
+  for (const key of keys) {
+    jobs.push({ key, kind: "normal", url: `${SPRITE_BASE}/${key}.png` });
+    jobs.push({ key, kind: "shiny",  url: `${SPRITE_BASE}/shiny/${key}.png` });
   }
   const missing = new Set();
   let done = 0;
   await pool(jobs, 32, async job => {
-    const dest = path.join(SPR, job.kind, `${job.id}.png`);
+    const dest = path.join(SPR, job.kind, `${job.key}.png`);
     const ok = await download(job.url, dest, { allow404: true });
-    if (!ok) missing.add(String(job.id));
+    if (!ok) missing.add(String(job.key));
     if (++done % 500 === 0) log(`  스프라이트 ${done}/${jobs.length}`);
   });
   // 어떤 종에 스프라이트가 없었는지 남겨둔다 — data 단계만 따로 돌려도
   // 시트에 없는 종이 payload 에 끼어들지 않도록.
   fs.writeFileSync(MISSING_FILE, JSON.stringify([...missing]));
-  log(`스프라이트 ${jobs.length - missing.size * 2}장 준비됨 (없는 것 ${missing.size}종)`);
+  log(`스프라이트 ${jobs.length - missing.size * 2}장 준비됨 (없는 것 ${missing.size}가지)`);
   return missing;
 }
 
@@ -431,23 +515,23 @@ function repairSprites() {
   )).then(() => { log(`깨진 스프라이트 ${broken.length}개 복구`); return broken.length; });
 }
 
-async function buildSheets(entries) {
+async function buildSheets(spriteKeys) {
   const { PNG } = require("pngjs");
   const sharp = require("sharp");
-  const rows = Math.ceil(entries.length / COLS);
+  const rows = Math.ceil(spriteKeys.length / COLS);
   const W = COLS * CELL, H = rows * CELL;
 
   for (const kind of ["normal", "shiny"]) {
     const sheet = new PNG({ width: W, height: H, colorType: 6 });
     sheet.data.fill(0);
     let placed = 0;
-    for (const m of entries) {
-      const src = path.join(SPR, kind, `${m.i}.png`);
-      if (!fs.existsSync(src)) continue;
+    spriteKeys.forEach((key, x) => {
+      const src = path.join(SPR, kind, `${key}.png`);
+      if (!fs.existsSync(src)) return;
       PNG.bitblt(PNG.sync.read(fs.readFileSync(src)), sheet, 0, 0, CELL, CELL,
-                 (m.x % COLS) * CELL, Math.floor(m.x / COLS) * CELL);
+                 (x % COLS) * CELL, Math.floor(x / COLS) * CELL);
       placed++;
-    }
+    });
     const raw = PNG.sync.write(sheet, { deflateLevel: 6 });
     const out = path.join(ROOT, `sheet-${kind}.webp`);
     await sharp(raw).webp({ lossless: true, effort: 6 }).toFile(out);
@@ -478,7 +562,7 @@ async function buildData({ withSprites }) {
   let { entries } = buildPokemon();
   let missing;
   if (withSprites) {
-    missing = await fetchSprites(entries.map(e => e.i));
+    missing = await fetchSprites(entries.map(e => e._sp));
     await repairSprites();
   } else {
     missing = loadMissing();
@@ -495,7 +579,10 @@ async function buildData({ withSprites }) {
 
   const { marks, ribbons } = await buildMarksAndRibbons();
   const roles = await buildTrainerRoles(built.typeList);
-  const payload = { cols: COLS, types: built.typeList, mons: entries, marks, ribbons, roles };
+  fs.writeFileSync(SHEET_MAP, JSON.stringify(entries.map(e => e._sp)));
+  const payload = { cols: COLS, types: built.typeList, roles,
+                    mons: entries.map(e => { const c = Object.assign({}, e); delete c._sp; return c; }),
+                    marks, ribbons };
   mkdir(path.join(ROOT, "data"));
   fs.writeFileSync(path.join(ROOT, "data", "payload.json"), JSON.stringify(payload));
 
@@ -518,17 +605,18 @@ async function main() {
   if (step === "data") { await buildData({ withSprites: false }); buildHtml(); return; }
 
   if (step === "sheets") {
-    const payload = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "payload.json"), "utf8"));
-    await fetchSprites(payload.mons.map(m => m.i));
+    if (!fs.existsSync(SHEET_MAP)) { console.error("먼저 data 단계를 돌려 주세요 (.cache/sheet-map.json 없음)"); process.exit(1); }
+    const keys = JSON.parse(fs.readFileSync(SHEET_MAP, "utf8"));
+    await fetchSprites(keys);
     await repairSprites();
-    await buildSheets(payload.mons);
+    await buildSheets(keys);
     return;
   }
 
   if (step !== "all") { console.error(`알 수 없는 단계: ${step}`); process.exit(1); }
 
-  const entries = await buildData({ withSprites: true });
-  await buildSheets(entries);
+  await buildData({ withSprites: true });
+  await buildSheets(JSON.parse(fs.readFileSync(SHEET_MAP, "utf8")));
   buildHtml();
   log("\n빌드 완료 — index.html 을 브라우저로 열면 됩니다.");
 }

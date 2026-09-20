@@ -17,6 +17,8 @@
   --sh-up:0 8px 18px rgba(40,25,60,.18),0 30px 60px -20px rgba(40,25,60,.5);
   /* 카드는 이 크기로 그린 뒤 통째로 확대·축소한다 — 어느 화면에서도 비율이 같다 */
   --cw:1120px; --ch:700px; --k:1;
+  /* 스프라이트시트 격자 — 데이터가 늘면 아래 스크립트가 실제 값으로 덮어쓴다 */
+  --sheet-cols:32; --sheet-rows:48;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#141118; --panel:#1f1a26; --panel-2:#272031; --inset:#1a1520;
@@ -251,7 +253,7 @@ body.locked .bar.empty{display:none}
 .sprite{
   --cell:56px;--col:0;--row:0;width:var(--cell);height:var(--cell);flex:none;
   background-image:url("sheet-normal.webp");background-repeat:no-repeat;
-  background-size:calc(var(--cell)*32) calc(var(--cell)*42);
+  background-size:calc(var(--cell)*var(--sheet-cols)) calc(var(--cell)*var(--sheet-rows));
   background-position:calc(var(--cell)*var(--col)*-1) calc(var(--cell)*var(--row)*-1);
   image-rendering:pixelated;
 }
@@ -576,6 +578,9 @@ footer{margin-top:22px;text-align:center;font-size:11px;color:var(--faint);line-
 var P = JSON.parse(document.getElementById("pay").textContent);
 var MONS = P.mons, TYPES = P.types, COLS = P.cols, MARKS = P.marks, RIBBONS = P.ribbons;
 var ROLES = P.roles || [];
+/* 시트 격자는 데이터 수에서 바로 구한다 — 포켓몬이 늘어도 CSS 를 고칠 필요가 없다 */
+document.documentElement.style.setProperty("--sheet-cols", COLS);
+document.documentElement.style.setProperty("--sheet-rows", Math.ceil(MONS.length / COLS));
 var TC = {1:"#9fa19f",2:"#ff8000",3:"#81b9ef",4:"#9141cb",5:"#915121",6:"#afa981",7:"#91a119",
   8:"#704170",9:"#60a1b8",10:"#e62829",11:"#2980ef",12:"#3fa129",13:"#e8b800",14:"#ef4179",
   15:"#35b6dc",16:"#5060e1",17:"#6b5455",18:"#ef70ef"};
