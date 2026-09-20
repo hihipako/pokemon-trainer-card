@@ -322,6 +322,19 @@ select.tin{cursor:pointer}
 .search{flex:1 1 200px;display:flex;align-items:center;gap:7px;background:var(--inset);border:1.5px solid transparent;border-radius:999px;padding:7px 14px}
 .search:focus-within{border-color:var(--accent);background:var(--panel)}
 .search input{flex:1;background:none;border:0;outline:none;font-size:13.5px;min-width:0}
+/* 타입으로 걸러내기 */
+.typebar{display:flex;gap:4px;flex-wrap:wrap;margin-top:10px}
+.tchip{
+  font-size:11px;font-weight:700;padding:3.5px 10px;border-radius:999px;line-height:1.4;
+  border:1.5px solid transparent;
+  background:color-mix(in srgb, var(--c) 16%, var(--panel));
+  color:color-mix(in srgb, var(--c) 70%, var(--ink));
+}
+.tchip:hover{border-color:color-mix(in srgb, var(--c) 45%, transparent)}
+.tchip.on{background:var(--c);color:#fff;border-color:var(--c)}
+.tchip.all{background:var(--inset);color:var(--soft)}
+.tchip.all.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+
 .res{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:4px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
 .rit{display:flex;flex-direction:column;align-items:center;padding:5px 3px 6px;border-radius:9px;border:1.5px solid transparent;text-align:center}
 .rit:hover{background:var(--inset);border-color:var(--line-2)}
@@ -535,6 +548,7 @@ footer{margin-top:22px;text-align:center;font-size:11px;color:var(--faint);line-
           <select class="tin" id="genSel" aria-label="세대"><option value="0">전체 세대</option></select>
           <select class="tin" id="formSel" aria-label="폼"><option value="all">기본+폼</option><option value="base">기본만</option><option value="form">폼만</option></select>
         </div>
+        <div class="typebar" id="typebar" role="group" aria-label="타입으로 걸러내기"></div>
         <div class="res" id="res"></div>
       </div>
 
@@ -584,7 +598,10 @@ document.documentElement.style.setProperty("--sheet-rows", Math.ceil(MONS.length
 var TC = {1:"#9fa19f",2:"#ff8000",3:"#81b9ef",4:"#9141cb",5:"#915121",6:"#afa981",7:"#91a119",
   8:"#704170",9:"#60a1b8",10:"#e62829",11:"#2980ef",12:"#3fa129",13:"#e8b800",14:"#ef4179",
   15:"#35b6dc",16:"#5060e1",17:"#6b5455",18:"#ef70ef"};
-var SIZES = ["XS","S","M","L","XL"];
+/* 게임의 크기 기록과 같은 9단계 (XXXS 최소 … XXXL 최대) */
+var SIZES = ["XXXS","XXS","XS","S","표준","L","XL","XXL","XXXL"];
+/* 5단계만 쓰던 시절의 카드를 되살릴 때 M 은 표준으로 옮긴다 */
+function normSize(v){ return v === "M" ? "표준" : (SIZES.indexOf(v) >= 0 ? v : ""); }
 var $ = function(i){ return document.getElementById(i); };
 
 var CHO = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
@@ -1078,6 +1095,33 @@ function syncPreview(){
   $("mNow").textContent="· 지금 "+(e.nick||m.k);
 }
 
+/* ── 타입으로 걸러내기 ─────────────────────────────
+   여러 개를 고르면 그 타입을 모두 가진 포켓몬만 남는다 (예: 물+페어리). */
+var activeTypes=[];
+function buildTypebar(){
+  var w=$("typebar"); w.textContent="";
+  var all=document.createElement("button");
+  all.type="button";
+  all.className="tchip all"+(activeTypes.length?"":" on");
+  all.textContent="전체";
+  all.addEventListener("click",function(){ activeTypes=[]; buildTypebar(); renderRes(); });
+  w.appendChild(all);
+  Object.keys(TYPES).sort(function(a,b){ return a-b; }).forEach(function(t){
+    var on=activeTypes.indexOf(+t)>=0;
+    var b=document.createElement("button");
+    b.type="button"; b.className="tchip"+(on?" on":"");
+    b.style.setProperty("--c",TC[t]);
+    b.textContent=TYPES[t].ko;
+    b.setAttribute("aria-pressed",on?"true":"false");
+    b.addEventListener("click",function(){
+      var k=activeTypes.indexOf(+t);
+      if(k>=0) activeTypes.splice(k,1); else activeTypes.push(+t);
+      buildTypebar(); renderRes();
+    });
+    w.appendChild(b);
+  });
+}
+
 /* search inside the modal */
 var LIMIT=120;
 function renderRes(){
@@ -1088,6 +1132,7 @@ function renderRes(){
     if(gen&&m.n!==gen) return false;
     if(mode==="base"&&m.f) return false;
     if(mode==="form"&&!m.f) return false;
+    for(var n=0;n<activeTypes.length;n++) if(m.t.indexOf(activeTypes[n])<0) return false;
     if(!q) return true;
     if(cho) return m._c.indexOf(q)>=0;
     return m._a.toLowerCase().indexOf(q)>=0 || m._e.indexOf(q)>=0 || String(m.d).indexOf(q)>=0;
@@ -1385,7 +1430,7 @@ function decode(code){
     var v=o.e[i];
     if(!v||!byId[v[0]]){ n.ents.push(null); continue; }
     var m=byId[v[0]], gs=gendersOf(m);
-    n.ents.push({id:v[0],nick:String(v[1]||"").slice(0,12),size:SIZES.indexOf(v[2])>=0?v[2]:"",
+    n.ents.push({id:v[0],nick:String(v[1]||"").slice(0,12),size:normSize(v[2]),
       title:String(v[3]||""),ribbon:String(v[4]||""),g:gs.indexOf(v[5])>=0?v[5]:(gs.length?gs[0]:"n"),sh:!!v[6]});
   }
   n.baseSrc=S.baseSrc; n.crop=S.crop; n.layers=S.layers;
@@ -1467,12 +1512,14 @@ function start(hot){
   buildSeg($("e_gender"), [{label:"♂",v:"m"},{label:"♀",v:"f"}], function(v){
     var e=cur(); if(!e) return; e.g=v; markSeg($("e_gender"),v); renderParty(); save();
   });
+  buildTypebar();
   buildRoleSel(); buildTitleSel(); buildRibbonSel();
 
   var n=null;
   if(hot&&hot.S&&hot.S.v===VER&&Array.isArray(hot.S.ents)) n=hot.S;
   if(!n){ try{ var raw=localStorage.getItem(KEY); if(raw){ var o=JSON.parse(raw);
-    if(o&&o.v===VER&&Array.isArray(o.ents)){ o.ents=o.ents.map(function(e){ return e&&byId[e.id]?e:null; }).slice(0,6);
+    if(o&&o.v===VER&&Array.isArray(o.ents)){ o.ents=o.ents.map(function(e){
+        if(!e||!byId[e.id]) return null; e.size=normSize(e.size); return e; }).slice(0,6);
       while(o.ents.length<6) o.ents.push(null);
       o.show=o.show||{name:1,quote:1,desc:1,party:1}; o.layers=o.layers||[];
       o.party=o.party||{x:4,y:54}; o.crop=o.crop||{x:0,y:0,z:1}; n=migrateLayers(o); } } }catch(e){} }

@@ -182,6 +182,44 @@ async function run() {
     click(btn);
     return /XL/.test(doc.querySelectorAll("#bars .bar")[0].textContent);
   });
+  check("사이즈가 9단계", () => {
+    const v = [...$("e_size").children].map(b => b.dataset.v);
+    const want = ["XXXS","XXS","XS","S","표준","L","XL","XXL","XXXL"];
+    return v.join(",") === want.join(",") || v.join(",");
+  });
+  check("XXXL 을 고르면 막대에 붙음", () => {
+    const btn = [...$("e_size").children].find(b => b.dataset.v === "XXXL");
+    click(btn);
+    return /XXXL/.test(doc.querySelectorAll("#bars .bar")[0].textContent)
+      || doc.querySelectorAll("#bars .bar")[0].textContent;
+  });
+  check("타입 칩 19개 (전체 + 18타입)", () => {
+    const n = $("typebar").querySelectorAll(".tchip").length;
+    return n === 19 || "개수 " + n;
+  });
+  check("페어리만 고르면 페어리 포켓몬만 남음", () => {
+    input($("q"), "");
+    const fairy = [...$("typebar").querySelectorAll(".tchip")].find(b => b.textContent === "페어리");
+    click(fairy);
+    const n = doc.querySelectorAll("#res .rit").length;
+    input($("q"), "리자몽");
+    const none = doc.querySelectorAll("#res .rit").length;
+    return (n > 0 && none === 0) || "페어리 " + n + "마리 · 리자몽 검색 " + none;
+  });
+  check("전체를 누르면 타입 조건이 풀림", () => {
+    click([...$("typebar").querySelectorAll(".tchip")][0]);
+    input($("q"), "리자몽");
+    return doc.querySelectorAll("#res .rit").length > 0;
+  });
+  check("두 타입을 고르면 둘 다 가진 것만", () => {
+    input($("q"), "");
+    const chips = [...$("typebar").querySelectorAll(".tchip")];
+    click(chips.find(b => b.textContent === "얼음"));
+    click(chips.find(b => b.textContent === "페어리"));
+    const names = [...doc.querySelectorAll("#res .rit .rn")].map(e => e.textContent);
+    click([...$("typebar").querySelectorAll(".tchip")][0]);
+    return names.includes("나인테일") || "나온 것: " + names.slice(0,5).join(", ");
+  });
   check("칭호 목록 98종", () => $("e_title").querySelectorAll("option").length === 99
         || "개수 " + $("e_title").querySelectorAll("option").length);
   check("리본 목록 101종", () => $("e_ribbon").querySelectorAll("option").length === 102
@@ -201,7 +239,7 @@ async function run() {
   });
   check("표기 순서 닉네임/종류/사이즈", () => {
     const t = doc.querySelectorAll("#bars .bar")[0].textContent.replace(/\s+/g, "");
-    return /울울\/님피아\/[♂♀]\/XL/.test(t) || t;
+    return /울울\/님피아\/[♂♀]\/(XXXS|XXS|XS|S|표준|L|XL|XXL|XXXL)/.test(t) || t;
   });
   check("편집창 닫기", () => { click($("mClose")); return $("modal").hidden === true; });
 
